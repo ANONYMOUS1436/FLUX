@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crime Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/file-saver"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <header class="bg-gradient-to-r from-red-600 to-red-900 py-8 text-center shadow-lg">
+        <h1 class="text-4xl font-bold">Crime Report</h1>
+        <p class="mt-2 text-lg">Help keep your community safe by reporting crimes.</p>
+    </header>
+
+    <main class="container mx-auto px-4 py-8 max-w-2xl">
+        <h2 class="text-2xl font-semibold mb-6">Report a Crime</h2>
+        <form id="crimeReportForm" class="space-y-4">
+            <div>
+                <label for="crimeType" class="block text-sm font-medium mb-1">Crime Type:</label>
+                <select id="crimeType" name="crimeType" class="w-full p-2 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:border-red-500" required>
+                    <option value="theft">Theft</option>
+                    <option value="burglary">Burglary</option>
+                    <option value="vandalism">Vandalism</option>
+                    <option value="assault">Assault</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="location" class="block text-sm font-medium mb-1">Location:</label>
+                <input type="text" id="location" name="location" readonly class="w-full p-2 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:border-red-500">
+            </div>
+
+            <div>
+                <label for="city" class="block text-sm font-medium mb-1">City:</label>
+                <input type="text" id="city" name="city" readonly class="w-full p-2 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:border-red-500">
+            </div>
+
+            <div>
+                <label for="description" class="block text-sm font-medium mb-1">Description:</label>
+                <textarea id="description" name="description" required class="w-full p-2 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:border-red-500" rows="4"></textarea>
+            </div>
+
+            <div>
+                <label for="mobile" class="block text-sm font-medium mb-1">Mobile Number (Required):</label>
+                <input type="tel" id="mobile" name="mobile" required class="w-full p-2 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:border-red-500">
+            </div>
+
+            <div>
+                <label for="email" class="block text-sm font-medium mb-1">Email ID (Optional):</label>
+                <input type="email" id="email" name="email" class="w-full p-2 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:border-red-500">
+            </div>
+
+            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition duration-300">Submit Report</button>
+        </form>
+
+        <div class="mt-6 flex space-x-4">
+            <button onclick="downloadReports()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition duration-300">Download Reports</button>
+            <button onclick="viewReports()" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition duration-300">View Reports</button>
+        </div>
+
+        <div id="map" class="mt-6 h-64 rounded-lg shadow-lg"></div>
+
+        <!-- Table to display reports -->
+        <table id="reportsTable" class="mt-6 w-full bg-gray-800 rounded-lg shadow-lg" style="display: none;">
+            <thead>
+                <tr class="bg-red-600">
+                    <th class="p-3 text-left">Crime Type</th>
+                    <th class="p-3 text-left">Location</th>
+                    <th class="p-3 text-left">City</th>
+                    <th class="p-3 text-left">Description</th>
+                    <th class="p-3 text-left">Mobile</th>
+                    <th class="p-3 text-left">Email</th>
+                    <th class="p-3 text-left">Timestamp</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700"></tbody>
+        </table>
+    </main>
+
+    <script>
+        let reports = JSON.parse(localStorage.getItem("crimeReports")) || [];
+
+        // Initialize the map and fetch user location
+        function initMap() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async position => {
+                    const userLocation = [position.coords.latitude, position.coords.longitude];
+                    document.getElementById("location").value = userLocation.join(", ");
+
+                    // Initialize Leaflet map
+                    let map = L.map('map').setView(userLocation, 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    L.marker(userLocation).addTo(map).bindPopup("Your Location").openPopup();
+
+                    // Fetch city name using Nominatim API
+                    try {
+                        const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLocation[0]}&lon=${userLocation[1]}`);
+                        const address = response.data.address;
+                        const city = address.city || address.town || address.village || address.county || "Unknown";
+                        document.getElementById("city").value = city;
+                    } catch (error) {
+                        console.error("Error fetching city:", error);
+                        document.getElementById("city").value = "Unknown";
+                    }
+                });
+            }
+        }
+
+        // Handle form submission
+        document.getElementById("crimeReportForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const crimeType = document.getElementById("crimeType").value;
+            const location = document.getElementById("location").value;
+            const city = document.getElementById("city").value;
+            const description = document.getElementById("description").value;
+            const mobile = document.getElementById("mobile").value;
+            const email = document.getElementById("email").value;
+
+            const report = {
+                crimeType,
+                location,
+                city,
+                description,
+                mobile: `'${mobile}`, // Prefix mobile number with an apostrophe to treat it as text
+                email,
+                timestamp: new Date().toISOString()
+            };
+
+            reports.push(report);
+            localStorage.setItem("crimeReports", JSON.stringify(reports));
+            alert("Report submitted successfully!");
+        });
+
+        // Download reports as CSV
+        function downloadReports() {
+            if (reports.length === 0) {
+                alert("No reports to download.");
+                return;
+            }
+
+            // Convert reports to CSV format
+            const headers = Object.keys(reports[0]).join(",");
+            const rows = reports.map(report => 
+                Object.values(report).map(value => 
+                    typeof value === "string" && value.includes(",") ? `"${value}"` : value
+                ).join(",")
+            ).join("\n");
+
+            const csvContent = `${headers}\n${rows}`;
+
+            // Create a Blob and trigger download
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "crime_reports.csv";
+            link.click();
+        }
+
+        // View reports in a table
+        function viewReports() {
+            const table = document.getElementById("reportsTable");
+            const tbody = table.querySelector("tbody");
+            tbody.innerHTML = ""; // Clear previous data
+
+            if (reports.length === 0) {
+                alert("No reports to display.");
+                return;
+            }
+
+            reports.forEach(report => {
+                const row = document.createElement("tr");
+                Object.values(report).forEach(value => {
+                    const cell = document.createElement("td");
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+                tbody.appendChild(row);
+            });
+
+            table.style.display = "table"; // Show the table
+        }
+
+        // Initialize the map on page load
+        initMap();
+    </script>
+</body>
+</html>
