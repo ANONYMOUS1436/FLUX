@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Location & Buttons</title>
+    <style>
+        /* General styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-image: url('https://imgs.search.brave.com/dITQn_9-kRYQb_xktKTKNnVJAvnYPCFl_p8NxIkuKAQ/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/Z21lcmN5dS5lZHUv/aW1hZ2VzL2xlYXJu/X3BhZ2VzL2xlYXJu/X2JlY29taW5nX2Ff/aG9taWNpZGVfZGV0/ZWN0aXZlLmpwZw');
+            background-size: cover;
+            background-position: center center;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            height: 100vh;
+            padding-bottom: 60px;
+        }
+        
+        h1 {
+            color: #fff;
+            margin-top: 50px;
+            font-size: 70px;
+        }
+        
+        h2{
+            color: #000000b4;
+            font-size: 50px;
+        }
+        #location {
+            font-size: 25px;
+
+            color: #000000;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            display: inline-block;
+            width: 80%;
+            max-width: 600px;
+            margin-bottom: 30px;
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+        }
+
+        #warning {
+            font-size: 15px;
+            padding: 10px;
+            size: 300px;
+            color: #1e1818;
+            background-color: rgba(242, 242, 242, 0.6); /* Dark background with transparency */
+            align-items: end;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Button styles */
+        button {
+            background-color: #798a25;
+            color: white;
+            font-size: 30px;
+            padding: 12px 25px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            outline: none;
+        }
+
+        button:hover {
+            background-color: #000000;
+            transform: scale(1.1); /* Scale up the button on hover */
+        }
+
+        button:active {
+            background-color: #000000;
+        }
+
+        /* Button Animation */
+        .bounce {
+            animation: bounce 0.3s ease-out;
+        }
+
+        @keyframes bounce {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* Container to hold the buttons */
+        .button-container {
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>ALERT!</h1>
+    <h2>You are in Emergency mode</h2> 
+    <p id="location">Loading your location...</p>
+
+    <!-- Container for buttons -->
+    <div class="button-container">
+        <button id="Accident" onclick="buttonAction('Accident')">Accident</button>
+        <button id="Assault" onclick="buttonAction('Assault')">Assault</button>
+        <button id="Murder" onclick="buttonAction('Murder')">Murder</button>
+        <button id="Harassment" onclick="buttonAction('Harassment')">Harassment</button>
+    </div>
+
+    <div>
+        <p id="warning">
+           <b>Warning:</b> Emergency mode in crime scene investigations should only be used in situations where immediate action is required to preserve evidence or protect the scene. It is not recommended for routine use, as it may alter or interfere with crucial evidence. Overuse or improper use of emergency procedures can compromise the integrity of the investigation, lead to data loss, or disrupt the scene. Always follow standard procedures unless absolutely necessary for the safety of personnel or preservation of evidence.
+        </p>
+    </div>
+
+    <script>
+        // Function to get user's location
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+
+                        // Save the location data in localStorage
+                        localStorage.setItem('userLocation', JSON.stringify({ latitude, longitude }));
+
+                        // Update the page with the user's location
+                        document.getElementById('location').innerText = Your location: Latitude: ${latitude}, Longitude: ${longitude};
+                    },
+                    function(error) {
+                        console.error('Error getting location', error);
+                        document.getElementById('location').innerText = 'Unable to retrieve your location.';
+                    }
+                );
+            } else {
+                document.getElementById('location').innerText = 'Geolocation is not supported by this browser.';
+            }
+        }
+
+        // Action for button clicks
+        function buttonAction(buttonName) {
+            // Get the stored location
+            const userLocation = JSON.parse(localStorage.getItem('userLocation'));
+            if (!userLocation) {
+                alert("Location is not available!");
+                return;
+            }
+            
+            // Save the button name and location to localStorage
+            const data = {
+                buttonName: buttonName,
+                location: userLocation
+            };
+
+            // Get existing entries or initialize as an empty array
+            let entries = JSON.parse(localStorage.getItem('entries')) || [];
+
+            // Add the new entry to the array
+            entries.push(data);
+
+            // Store the updated entries in localStorage
+            localStorage.setItem('entries', JSON.stringify(entries));
+
+            
+            if (entries.length >= 15) {
+                downloadCSV(entries);
+                // Clear the entries after downloading
+                localStorage.removeItem('entries');
+            }
+
+            // Show an alert
+            alert(${buttonName} reported);
+
+            // Add bounce animation to the clicked button
+            const button = event.target;
+            button.classList.add('bounce');
+
+            // Remove animation class after animation ends (for re-triggering the animation on next click)
+            setTimeout(() => {
+                button.classList.remove('bounce');
+            }, 300);
+        }
+
+        // Function to generate and download the CSV
+        function downloadCSV(entries) {
+            let csvContent = "Button Name,Latitude,Longitude\n"; // CSV header
+
+            // Add each entry as a row
+            entries.forEach(entry => {
+                csvContent += ${entry.buttonName},${entry.location.latitude},${entry.location.longitude}\n;
+            });
+
+            // Create a Blob and trigger the download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "crime_reports.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Load user's location when the page loads
+        window.onload = getUserLocation;
+    </script>
+</body>
+</html>
